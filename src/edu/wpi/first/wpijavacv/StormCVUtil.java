@@ -1,12 +1,6 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package edu.wpi.first.wpijavacv;
 
-import com.googlecode.javacv.cpp.opencv_core;
-import com.googlecode.javacv.cpp.opencv_core.CvSeq;
-import com.googlecode.javacv.cpp.opencv_core.IplImage;
+import static com.googlecode.javacv.cpp.opencv_core.*;
 
 /**
  *
@@ -23,15 +17,40 @@ public class StormCVUtil {
         return contour.getCVSeq();
     }
 
-    public static WPIContour makeWPIContour(opencv_core.CvSeq seq)
+    public static WPIContour makeWPIContour(CvSeq seq)
     {
         return new WPIContour(seq);
     }
 
-    public static WPIGrayscaleImage makeWPIGrayscaleImage(opencv_core.IplImage arr)
+    public static WPIGrayscaleImage makeWPIGrayscaleImage(IplImage arr)
     {
-        opencv_core.IplImage tempImage = opencv_core.IplImage.create(arr.cvSize(), arr.depth(), 1);
-        opencv_core.cvCopy(arr, tempImage);
+        IplImage tempImage = IplImage.create(arr.cvSize(), arr.depth(), 1);
+        cvCopy(arr, tempImage);
         return new WPIGrayscaleImage(tempImage);
+    }
+
+    public static WPIColorImage makeWPIColorImage(IplImage arr)
+    {
+        IplImage tempImage = IplImage.create(arr.cvSize(), arr.depth(), 1);
+        cvCopy(arr, tempImage);
+        return new WPIColorImage(tempImage);
+    }
+    
+    public static void copyIplImage(WPIImage out,IplImage image) {
+        boolean allocateNew = false;
+        if(out.image == null || out.image.depth() != image.depth()) {
+            allocateNew = true;
+        } else {
+            CvSize outSize = out.image.cvSize(),
+                   imgSize = image.cvSize();
+            if(outSize.width() != imgSize.width() || outSize.height() != imgSize.height()) {
+                allocateNew = true;
+            }
+        }
+        if(allocateNew) {
+            System.out.println("Allocating new");
+            out.image = IplImage.create(image.cvSize(), image.depth(), 1);
+        }
+        cvCopy(image,out.image);
     }
 }

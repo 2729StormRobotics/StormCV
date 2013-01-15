@@ -8,9 +8,14 @@ import edu.wpi.first.smartdashboard.properties.BooleanProperty;
 import edu.wpi.first.smartdashboard.properties.IntegerProperty;
 import edu.wpi.first.smartdashboard.properties.MultiProperty;
 import edu.wpi.first.smartdashboard.properties.Property;
+import edu.wpi.first.smartdashboard.robot.Robot;
 import edu.wpi.first.wpijavacv.StormCVUtil;
 import edu.wpi.first.wpijavacv.WPIColorImage;
 import edu.wpi.first.wpijavacv.WPIImage;
+import java.io.FileNotFoundException;
+import java.io.PrintStream;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -36,6 +41,7 @@ public class StormCV extends WPILaptopCameraExtension {
     private Object _process;
     
     // Keep temporaries around so they aren't constantly being reallocated
+    private WPIImage _ret;
     private CvSize   _size;
     private IplImage _bin;
     private IplImage _redLow,  _redHigh;
@@ -44,6 +50,13 @@ public class StormCV extends WPILaptopCameraExtension {
 
     @Override
     public void init() {
+        try {
+            // Since SmartDashboard apparently doesn't provide any output by default
+            System.setOut(new PrintStream("stdout.txt"));
+            System.setErr(new PrintStream("stderr.txt"));
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(StormCV.class.getName()).log(Level.SEVERE, null, ex);
+        }
         super.init();
         r0Property      = new IntegerProperty(this, "Low Red threshold",    0);
         r1Property      = new IntegerProperty(this, "High Red threshold",   255);
@@ -93,6 +106,7 @@ public class StormCV extends WPILaptopCameraExtension {
         if(_process == _process_nothing) {
             return rawImage;
         }
+        long startTime = System.nanoTime();
         
         // Reallocate temporaries if the size has changed
         if(_size == null || _size.width() != rawImage.getWidth() || _size.height() != rawImage.getHeight()) {
@@ -132,7 +146,14 @@ public class StormCV extends WPILaptopCameraExtension {
         cvAnd(_bin,    _greenLow,  _bin, null);
         cvAnd(_bin,    _greenHigh, _bin, null);
         
-        // return thresholded image
-        return StormCVUtil.makeWPIGrayscaleImage(_bin);
+        if(_ret == null) {
+            _ret = StormCVUtil.makeWPIGrayscaleImage(_bin);
+        } else {
+            StormCVUtil.copyIplImage(_ret, _bin);
+        }
+        
+        System.out.println((System.nanoTime()-startTime)/1.0e3 + " us");
+        
+        return _ret;
     }
 }
