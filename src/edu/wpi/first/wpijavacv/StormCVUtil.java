@@ -36,7 +36,7 @@ public class StormCVUtil {
         return new WPIColorImage(tempImage);
     }
     
-    public static void copyIplImage(WPIImage out,IplImage image) {
+    public static void copyImage(WPIImage out,IplImage image) {
         boolean allocateNew = false;
         if(out.image == null || out.image.depth() != image.depth()) {
             allocateNew = true;
@@ -52,5 +52,11 @@ public class StormCVUtil {
             out.image = IplImage.create(image.cvSize(), image.depth(), 1);
         }
         cvCopy(image,out.image);
+    }
+    
+    public static WPIImage dupImage(WPIImage in) {
+        IplImage newImage = IplImage.create(in.image.cvSize(), in.image.depth(), 1);
+        cvCopy(in.image, newImage);
+        return new WPIImage(newImage);
     }
 }
