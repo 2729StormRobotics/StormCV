@@ -3,3 +3,4 @@ suite/*
 build/
 __MACOSX/
 /nbproject/private/
+/dist/
