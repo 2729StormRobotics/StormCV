@@ -54,6 +54,10 @@ public class StormCV extends WPILaptopCameraExtension {
     
     // Having aspects of the process editable as properties allows for quick
     // and easy tuning and testing.
+    public final DoubleProperty
+        fovxProperty = new DoubleProperty(this,"horizontal FOV", 47),  // as per datasheet
+        fovyProperty = new DoubleProperty(this,"Vertical FOV", 36.13); // see http://photo.stackexchange.com/questions/21536/how-can-i-calculate-vertical-field-of-view-from-horizontal-field-of-view#21543
+    
     public final IntegerProperty 
         h0Property = new IntegerProperty(this, "Low Hue threshold",        50),
         h1Property = new IntegerProperty(this, "High Hue threshold",       90),
@@ -84,16 +88,18 @@ public class StormCV extends WPILaptopCameraExtension {
         contourColor2ptProperty = new ColorProperty(this, "2pt Contour color", Color.orange),
         contourColor5ptProperty = new ColorProperty(this, "5pt Contour color", Color.magenta),
         lineColorProperty       = new ColorProperty(this, "Line color",    Color.pink);
-    public final BooleanProperty
-        useTestImageProperty = new BooleanProperty(this, "Use Test Image",false);
         
     public final MultiProperty
         processProperty = new MultiProperty(this, "Process until?"),
         selectProperty  = new MultiProperty(this, "Select for?");
     
+    public final BooleanProperty
+        useTestImageProperty = new BooleanProperty(this, "Use Test Image",false);
+    
     
     // Store these and update them in propertyChanged() because getValue()
     // has too much overhead to be called every time.
+    private double _fovx,_fovy;
     private int _h0,_h1,
                 _s0,_s1,
                 _v0,_v1;
@@ -154,6 +160,9 @@ public class StormCV extends WPILaptopCameraExtension {
         
         selectProperty.setDefault("Closest");
         
+        _fovx = fovxProperty.getValue();
+        _fovy = fovyProperty.getValue();
+        
         _h0 = h0Property.getValue();
         _h1 = h1Property.getValue();
         _s0 = s0Property.getValue();
@@ -198,7 +207,11 @@ public class StormCV extends WPILaptopCameraExtension {
 
     @Override
     public void propertyChanged(Property property) {        
-        if(property == h0Property) {
+        if(property == fovxProperty) {
+            _fovx = fovxProperty.getValue();
+        } else if(property == fovyProperty) {
+            _fovy = fovyProperty.getValue();
+        } else if(property == h0Property) {
             _h0 = h0Property.getValue();
         } else if(property == h1Property) {
             _h1 = h1Property.getValue();
@@ -244,15 +257,17 @@ public class StormCV extends WPILaptopCameraExtension {
     private String[] prefixes = { "3pt","2pt","5pt" };
     
     private void _sendData(int index,boolean found,double x,double y) {
+        x *= _fovx/2;
+        y *= _fovy/2;
         String prefix = prefixes[index];
         if(_sendResults) {
             outputTable.putBoolean(prefix + " Target Found?", found);
-            outputTable.putNumber (prefix + " Target X",     x);
-            outputTable.putNumber (prefix + " Target Y",     y);
+            outputTable.putNumber (prefix + " Target X Angle",     x);
+            outputTable.putNumber (prefix + " Target Y Angle",     y);
         } else {
             if(found) {
-                System.out.println(prefix + " Target X: " + x);
-                System.out.println(prefix + " Target Y: " + y);
+                System.out.println(prefix + " Target X Angle: " + x);
+                System.out.println(prefix + " Target Y Angle: " + y);
             } else {
                 System.out.println(prefix + " Target not found");
             }
