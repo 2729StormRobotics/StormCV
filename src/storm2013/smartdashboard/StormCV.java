@@ -17,6 +17,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Scanner;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.imageio.ImageIO;
 
 /**
@@ -64,7 +66,10 @@ public class StormCV extends WPILaptopCameraExtension {
         holeClosingIterationsProperty = new IntegerProperty(this, "Hole Closing Iterations",2);
     
     public final DoubleProperty
-        polygonApproxProperty = new DoubleProperty(this, "Polygon approximation parameter",5);
+        polygonApproxProperty = new DoubleProperty(this, "Polygon approximation parameter",10);
+    
+    public final DoubleProperty
+        nearVertAngleProperty  = new DoubleProperty(this,"Nearly vertical angle",  70);
     
     public final DoubleProperty
         minAreaRatioProperty = new DoubleProperty(this,"Minimum contour/image area ratio",0.5/100);
@@ -77,7 +82,10 @@ public class StormCV extends WPILaptopCameraExtension {
     public final ColorProperty
         contourColor3ptProperty = new ColorProperty(this, "3pt Contour color", Color.red),
         contourColor2ptProperty = new ColorProperty(this, "2pt Contour color", Color.orange),
-        lineColorProperty    = new ColorProperty(this, "Line color",    Color.pink);
+        contourColor5ptProperty = new ColorProperty(this, "5pt Contour color", Color.magenta),
+        lineColorProperty       = new ColorProperty(this, "Line color",    Color.pink);
+    public final BooleanProperty
+        useTestImageProperty = new BooleanProperty(this, "Use Test Image",false);
         
     public final MultiProperty
         processProperty = new MultiProperty(this, "Process until?"),
@@ -98,9 +106,12 @@ public class StormCV extends WPILaptopCameraExtension {
                    _max2ptAspectRatio;
     private Color _contourColor3pt,
                   _contourColor2pt,
+                  _contourColor5pt,
                   _lineColor;
+    private double _nearVertSlope;
     private Object _process,
                    _select;
+    private boolean _useTestImage;
     
     private CvPoint2D32f _desiredLocNormed = new CvPoint2D32f(0,0);
     
@@ -119,6 +130,9 @@ public class StormCV extends WPILaptopCameraExtension {
     private IplImage _valLow, _valHigh;
     private IplConvKernel _morphology = IplConvKernel.create(3, 3, 1, 1, CV_SHAPE_RECT, null);;
     private CvMemStorage _storage;
+    
+    private WPIColorImage _loadedImage,
+                          _processImage;
             
     private boolean  _sendResults = true,
                      _displayIntermediate       = false;
@@ -157,13 +171,22 @@ public class StormCV extends WPILaptopCameraExtension {
         _max3ptAspectRatio = max3ptAspectRatioProperty.getValue();
         _min2ptAspectRatio = min2ptAspectRatioProperty.getValue();
         _max2ptAspectRatio = max2ptAspectRatioProperty.getValue();
+        
+        _nearVertSlope = Math.tan(Math.toRadians(nearVertAngleProperty.getValue()));
 
         _contourColor3pt = contourColor3ptProperty.getValue();
         _contourColor2pt = contourColor2ptProperty.getValue();
+        _contourColor5pt = contourColor5ptProperty.getValue();
         _lineColor = lineColorProperty.getValue();
         
         _process = processProperty.getValue();
         _select  = selectProperty.getValue();
+        
+        try {
+            _loadedImage = new WPIColorImage(ImageIO.read(new File("test.jpg")));
+        } catch (IOException ex) {
+            Logger.getLogger(StormCV.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
     
     @Override
@@ -191,6 +214,8 @@ public class StormCV extends WPILaptopCameraExtension {
             _holeClosingIterations = holeClosingIterationsProperty.getValue();
         } else if(property == polygonApproxProperty) {
             _polygonApprox = polygonApproxProperty.getValue();
+        } else if(property == nearVertAngleProperty) {
+            _nearVertSlope = Math.tan(Math.toRadians(nearVertAngleProperty.getValue()));
         } else if(property == minAreaRatioProperty) {
             _minAreaRatio = minAreaRatioProperty.getValue();
         } else if(property == min3ptAspectRatioProperty) {
@@ -201,6 +226,8 @@ public class StormCV extends WPILaptopCameraExtension {
             _min2ptAspectRatio = min2ptAspectRatioProperty.getValue();
         } else if(property == max2ptAspectRatioProperty) {
             _max2ptAspectRatio = max2ptAspectRatioProperty.getValue();
+        } else if(property == useTestImageProperty) {
+            _useTestImage = useTestImageProperty.getValue();
         } else if(property == contourColor3ptProperty) {
             _contourColor3pt = contourColor3ptProperty.getValue();
         } else if(property == contourColor2ptProperty) {
@@ -214,7 +241,7 @@ public class StormCV extends WPILaptopCameraExtension {
         }
     }
     
-    private String[] prefixes = { "3pt","2pt" };
+    private String[] prefixes = { "3pt","2pt","5pt" };
     
     private void _sendData(int index,boolean found,double x,double y) {
         String prefix = prefixes[index];
@@ -400,6 +427,10 @@ public class StormCV extends WPILaptopCameraExtension {
 
     @Override
     public WPIImage processImage(WPIColorImage rawImage) {
+        if(_useTestImage) {
+            _processImage = new WPIColorImage(_loadedImage.getBufferedImage());
+            rawImage = _processImage;
+        }
         long startTime = System.nanoTime();
         if(_displayIntermediate) {
             _displayImage("Raw",StormCVUtil.getIplImage(rawImage));
@@ -505,66 +536,83 @@ public class StormCV extends WPILaptopCameraExtension {
             copy.deallocate();
         }
         
-        int[] selectedIndices = { -1, -1 };
+        int[] selectedIndices = { -1, -1, -1 };
         
         double minArea = rawImage.getWidth()*rawImage.getHeight()*_minAreaRatio;
         double[] largestAreas = { 0, 0 };
+        double tallestHeight = 0;
         double[] smallestDistances = { 0, 0 };
         for(int i=0;i<convexContours.size();++i) {
             CvSeq contour = convexContours.get(i);
             CvRect boundingRect = cvBoundingRect(contour, 1);
             double area = boundingRect.width()*boundingRect.height();
-            if(area < minArea) {
+            if(contour.total() != 2 && area < minArea) {
                 continue;
             }
-            if(contour.total() != 4) {
+            if(contour.total() != 4 && contour.total() != 2) {
                 continue;
             }
             CvPoint points = new CvPoint(contour.total());
             cvCvtSeqToArray(contour, points, CV_WHOLE_SEQ);
-            
-            double aspectRatio = _aspectRatio(points);
 
             int index;
             
-            if(aspectRatio > _min3ptAspectRatio && aspectRatio < _max3ptAspectRatio) {
-                index = 0;
-            } else if(aspectRatio > _min2ptAspectRatio && aspectRatio < _max2ptAspectRatio) {
-                index = 1;
-            } else {
-                continue;
-            }
-            
-            if(_select == _select_biggest) {
-                if(selectedIndices[index] == -1 || area > largestAreas[index]) {
+            if(contour.total() == 2) {
+                System.out.println("Line");
+                index = 2;
+                double dx = Math.abs(points.position(1).x()-points.position(0).x()),
+                       dy = Math.abs(points.position(1).y()-points.position(0).y());
+                if(dy < _nearVertSlope*dx) {
+                    continue;
+                }
+                System.out.println("Vert line");
+                if(selectedIndices[index] == -1 || dy > tallestHeight) {
                     selectedIndices[index] = i;
-                    largestAreas[index]    = area;
+                    tallestHeight          = dy;
                 }
             } else {
-                double centroidX = 0,centroidY = 0;
-                for(int j=0;j<contour.total();++j) {
-                    centroidX += points.position(j).x();
-                    centroidY += points.position(j).y();
+
+                double aspectRatio = _aspectRatio(points);
+
+                if(aspectRatio > _min3ptAspectRatio && aspectRatio < _max3ptAspectRatio) {
+                    index = 0;
+                } else if(aspectRatio > _min2ptAspectRatio && aspectRatio < _max2ptAspectRatio) {
+                    index = 1;
+                } else {
+                    continue;
                 }
-                centroidX /= contour.total();
-                centroidY /= contour.total();
-                
-                // normalize
-                centroidX = centroidX*2/rawImage.getWidth()-1;
-                centroidY = centroidY*2/rawImage.getWidth()-1;
-                
-                double dx = centroidX-_desiredLocNormed.x(),
-                       dy = centroidY-_desiredLocNormed.y();
-                
-                double dist = Math.sqrt(dx*dx+dy*dy);
-                if(selectedIndices[index] == -1 || dist < smallestDistances[index]) {
-                    selectedIndices[index]   = i;
-                    smallestDistances[index] = dist;
+
+                if(_select == _select_biggest) {
+                    if(selectedIndices[index] == -1 || area > largestAreas[index]) {
+                        selectedIndices[index] = i;
+                        largestAreas[index]    = area;
+                    }
+                } else {
+                    double centroidX = 0,centroidY = 0;
+                    for(int j=0;j<contour.total();++j) {
+                        centroidX += points.position(j).x();
+                        centroidY += points.position(j).y();
+                    }
+                    centroidX /= contour.total();
+                    centroidY /= contour.total();
+
+                    // normalize
+                    centroidX = centroidX*2/rawImage.getWidth()-1;
+                    centroidY = centroidY*2/rawImage.getWidth()-1;
+
+                    double dx = centroidX-_desiredLocNormed.x(),
+                           dy = centroidY-_desiredLocNormed.y();
+
+                    double dist = Math.sqrt(dx*dx+dy*dy);
+                    if(selectedIndices[index] == -1 || dist < smallestDistances[index]) {
+                        selectedIndices[index]   = i;
+                        smallestDistances[index] = dist;
+                    }
                 }
             }
         }
         
-        Color[] colors = { _contourColor3pt,_contourColor2pt };
+        Color[] colors = { _contourColor3pt,_contourColor2pt,_contourColor5pt };
         
         for(int i=0;i<selectedIndices.length;++i) {
             int selectedIndex = selectedIndices[i];
