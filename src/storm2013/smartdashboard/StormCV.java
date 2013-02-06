@@ -53,26 +53,26 @@ public class StormCV extends WPILaptopCameraExtension {
     // Having aspects of the process editable as properties allows for quick
     // and easy tuning and testing.
     public final IntegerProperty 
-        h0Property = new IntegerProperty(this, "Low Hue threshold",        60),
+        h0Property = new IntegerProperty(this, "Low Hue threshold",        50),
         h1Property = new IntegerProperty(this, "High Hue threshold",       90),
-        s0Property = new IntegerProperty(this, "Low Saturation threshold", 70),
+        s0Property = new IntegerProperty(this, "Low Saturation threshold", 220),
         s1Property = new IntegerProperty(this, "High Saturation threshold",255),
-        v0Property = new IntegerProperty(this, "Low Value threshold",      90),
+        v0Property = new IntegerProperty(this, "Low Value threshold",      20),
         v1Property = new IntegerProperty(this, "High Value threshold",     255);
         
     public final IntegerProperty
-        holeClosingIterationsProperty = new IntegerProperty(this, "Hole Closing Iterations",4);
+        holeClosingIterationsProperty = new IntegerProperty(this, "Hole Closing Iterations",2);
+    
+    public final DoubleProperty
+        polygonApproxProperty = new DoubleProperty(this, "Polygon approximation parameter",5);
     
     public final DoubleProperty
         minAreaRatioProperty = new DoubleProperty(this,"Minimum contour/image area ratio",0.5/100);
     public final DoubleProperty
-        min3ptAspectRatioProperty = new DoubleProperty(this,"Minimum 3-pt aspect ratio",3),
+        min3ptAspectRatioProperty = new DoubleProperty(this,"Minimum 3-pt aspect ratio",2.4),
         max3ptAspectRatioProperty = new DoubleProperty(this,"Maximum 3-pt aspect ratio",4),
-        min2ptAspectRatioProperty = new DoubleProperty(this,"Minimum 2-pt aspect ratio",2),
-        max2ptAspectRatioProperty = new DoubleProperty(this,"Maximum 2-pt aspect ratio",3);
-    public final DoubleProperty
-        nearHorizAngleProperty = new DoubleProperty(this,"Nearly horizontal angle",20),
-        nearVertAngleProperty  = new DoubleProperty(this,"Nearly vertical angle",  70);
+        min2ptAspectRatioProperty = new DoubleProperty(this,"Minimum 2-pt aspect ratio",1.7),
+        max2ptAspectRatioProperty = new DoubleProperty(this,"Maximum 2-pt aspect ratio",2.4);
         
     public final ColorProperty
         contourColor3ptProperty = new ColorProperty(this, "3pt Contour color", Color.red),
@@ -90,13 +90,12 @@ public class StormCV extends WPILaptopCameraExtension {
                 _s0,_s1,
                 _v0,_v1;
     private int _holeClosingIterations;
+    private double _polygonApprox;
     private double _minAreaRatio;
     private double _min3ptAspectRatio,
                    _max3ptAspectRatio,
                    _min2ptAspectRatio,
                    _max2ptAspectRatio;
-    private double _nearHorizSlope,
-                   _nearVertSlope;
     private Color _contourColor3pt,
                   _contourColor2pt,
                   _lineColor;
@@ -150,15 +149,14 @@ public class StormCV extends WPILaptopCameraExtension {
         
         _holeClosingIterations = holeClosingIterationsProperty.getValue();
         
+        _polygonApprox = polygonApproxProperty.getValue();
+        
         _minAreaRatio = minAreaRatioProperty.getValue();
         
         _min3ptAspectRatio = min3ptAspectRatioProperty.getValue();
         _max3ptAspectRatio = max3ptAspectRatioProperty.getValue();
         _min2ptAspectRatio = min2ptAspectRatioProperty.getValue();
         _max2ptAspectRatio = max2ptAspectRatioProperty.getValue();
-        
-        _nearHorizSlope = Math.tan(Math.toRadians(nearHorizAngleProperty.getValue()));
-        _nearVertSlope = Math.tan(Math.toRadians(nearVertAngleProperty.getValue()));
 
         _contourColor3pt = contourColor3ptProperty.getValue();
         _contourColor2pt = contourColor2ptProperty.getValue();
@@ -191,6 +189,8 @@ public class StormCV extends WPILaptopCameraExtension {
             _v1 = v1Property.getValue();
         } else if(property == holeClosingIterationsProperty) {
             _holeClosingIterations = holeClosingIterationsProperty.getValue();
+        } else if(property == polygonApproxProperty) {
+            _polygonApprox = polygonApproxProperty.getValue();
         } else if(property == minAreaRatioProperty) {
             _minAreaRatio = minAreaRatioProperty.getValue();
         } else if(property == min3ptAspectRatioProperty) {
@@ -201,10 +201,6 @@ public class StormCV extends WPILaptopCameraExtension {
             _min2ptAspectRatio = min2ptAspectRatioProperty.getValue();
         } else if(property == max2ptAspectRatioProperty) {
             _max2ptAspectRatio = max2ptAspectRatioProperty.getValue();
-        } else if(property == nearHorizAngleProperty) {
-            _nearHorizSlope = Math.tan(Math.toRadians(nearHorizAngleProperty.getValue()));
-        } else if(property == nearVertAngleProperty) {
-            _nearVertSlope = Math.tan(Math.toRadians(nearVertAngleProperty.getValue()));
         } else if(property == contourColor3ptProperty) {
             _contourColor3pt = contourColor3ptProperty.getValue();
         } else if(property == contourColor2ptProperty) {
@@ -246,10 +242,10 @@ public class StormCV extends WPILaptopCameraExtension {
     }
     
     private double _aspectRatio(CvPoint points) {
-        float horizTotal = 0,
-              vertTotal  = 0;
-        int horizCount = 0,
-            vertCount  = 0;
+        ArrayList<Double> horizDx = new ArrayList<>(),
+                          horizDy = new ArrayList<>(),
+                          vertDx  = new ArrayList<>(),
+                          vertDy  = new ArrayList<>();
         for(int i=0;i<4;++i) {
             int startIndex = i,
                 endIndex   = (i+1)%4;
@@ -257,25 +253,51 @@ public class StormCV extends WPILaptopCameraExtension {
                 startY = points.position(startIndex).y();
             int endX   = points.position(endIndex).x(),
                 endY   = points.position(endIndex).y();
-            double dx = Math.abs(endX-startX),
-                   dy = Math.abs(endY-startY);
-//            System.out.format("%.3f/%.3f - <%.3f? >%.3f?\n", dy,dx,_nearHorizSlope,_nearVertSlope);
-            if(dy < _nearHorizSlope*dx) {
-                horizTotal += Math.sqrt(dx*dx+dy*dy);
-                horizCount++;
-            } else if(dy > _nearVertSlope*dx) {
-                vertTotal += Math.sqrt(dx*dx+dy*dy);
-                vertCount++;
+            double dx = endX-startX,
+                   dy = endY-startY;
+            double absDx = Math.abs(dx),
+                   absDy = Math.abs(dy);
+            if(absDy < absDx) {
+                horizDx.add(dx);
+                horizDy.add(dy);
+            } else {
+                vertDx.add(dx);
+                vertDy.add(dy);
             }
         }
-        if(vertCount == 0 || horizCount == 0 || vertTotal == 0) {
+        if(horizDx.size() != 2 || vertDx.size() != 2) {
             return 0;
         }
-        float horiz = horizTotal/horizCount,
-              vert  = vertTotal/vertCount;
+        
+        double horiz,vert;
+        
+        double[] absHorizDx = { Math.abs(horizDx.get(0)),
+                                Math.abs(horizDx.get(1)) },
+                 absHorizDy = { Math.abs(horizDy.get(0)),
+                                Math.abs(horizDy.get(1)) },
+                 absVertDx  = { Math.abs(vertDx.get(0)),
+                                Math.abs(vertDx.get(1)) },
+                 absVertDy  = { Math.abs(vertDy.get(0)),
+                                Math.abs(vertDy.get(1)) };
+        if((horizDy.get(0)/horizDx.get(0) < 0) != (horizDy.get(1)/horizDx.get(1) < 0)) {
+            System.out.println("dx override");
+            horiz = (absHorizDx[0]+absHorizDx[1])/2;
+        } else {
+            horiz = (Math.hypot(absHorizDx[0], absHorizDy[0])
+                     +Math.hypot(absHorizDx[1], absHorizDy[1]))
+                    /2;
+        }
+        if((vertDx.get(0)/vertDy.get(0) < 0) != (vertDx.get(1)/vertDy.get(1) < 0)) {
+            System.out.println("dy override");
+            vert = (absVertDy[0]+absVertDy[1])/2;
+        } else {
+            vert = (Math.hypot(absVertDx[0], absVertDy[0])
+                     +Math.hypot(absVertDx[1], absVertDy[1]))
+                    /2;
+        }
         
 //        System.out.format("%f/%f = %f\n",horiz,vert,horiz/vert);
-        
+        System.out.println("Aspect ratio: " + horiz/vert);
         return horiz/vert;
     }
     
@@ -459,7 +481,7 @@ public class StormCV extends WPILaptopCameraExtension {
         ArrayList<CvSeq> convexContours = new ArrayList<>();
         while(contours != null && !contours.isNull()) {
             CvSeq convexHull = cvConvexHull2(contours, _storage, CV_CLOCKWISE, 1);
-            CvSeq polygon    = cvApproxPoly(convexHull,convexHull.header_size(),_storage,CV_POLY_APPROX_DP,10,0);
+            CvSeq polygon    = cvApproxPoly(convexHull,convexHull.header_size(),_storage,CV_POLY_APPROX_DP,_polygonApprox,0);
             convexContours.add(polygon);
             contours = contours.h_next();
         }
@@ -644,7 +666,7 @@ public class StormCV extends WPILaptopCameraExtension {
             
             result = cv.processImage(rawImage);
             
-            cv._displayImage("Result", StormCVUtil.getIplImage(result));
+            cv._displayImage("Result: " + filename, StormCVUtil.getIplImage(result));
             
             System.out.println("Press Enter to Continue...");
             scanner.nextLine();

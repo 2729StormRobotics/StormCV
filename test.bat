@@ -1,4 +1,3 @@
 @echo off
-cd dist
-"\Program Files (x86)\Java\jre7\bin\java.exe" -jar StormCV.jar "\Users\Joe\Downloads\ReflectiveImages\image.jpg" "\Users\Joe\Downloads\ReflectiveImages\image (1).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (2).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (3).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (4).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (5).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (6).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (7).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (8).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (9).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (10).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (11).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (12).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (13).jpg" "\Users\Joe\Downloads\ReflectiveImages\image (14).jpg"
-cd ..
+"\Program Files (x86)\Java\jre7\bin\java.exe" -jar \Users\Joe\Dropbox\StormCV\dist\StormCV.jar %*
+pause
