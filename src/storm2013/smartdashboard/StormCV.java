@@ -56,7 +56,9 @@ public class StormCV extends WPILaptopCameraExtension {
     // and easy tuning and testing.
     public final DoubleProperty
         fovxProperty = new DoubleProperty(this,"horizontal FOV", 47),  // as per datasheet
-        fovyProperty = new DoubleProperty(this,"Vertical FOV", 36.13); // see http://photo.stackexchange.com/questions/21536/how-can-i-calculate-vertical-field-of-view-from-horizontal-field-of-view#21543
+        fovyProperty = new DoubleProperty(this,"Vertical FOV", 36.13), // see http://photo.stackexchange.com/questions/21536/how-can-i-calculate-vertical-field-of-view-from-horizontal-field-of-view#21543
+        desiredXAngleProperty = new DoubleProperty(this,"Desired X angle",0),
+        desiredYAngleProperty = new DoubleProperty(this,"Desired Y angle",0);
     
     public final IntegerProperty 
         h0Property = new IntegerProperty(this, "Low Hue threshold",        50),
@@ -76,7 +78,8 @@ public class StormCV extends WPILaptopCameraExtension {
         nearVertAngleProperty  = new DoubleProperty(this,"Nearly vertical angle",  70);
     
     public final DoubleProperty
-        minAreaRatioProperty = new DoubleProperty(this,"Minimum contour/image area ratio",0.5/100);
+        minAreaRatioProperty      = new DoubleProperty(this,"Minimum contour/image area ratio",0.5/100),
+        min5ptHeightRatioProperty = new DoubleProperty(this,"Minimum contour/image height ratio for 5pt",7.0/100);
     public final DoubleProperty
         min3ptAspectRatioProperty = new DoubleProperty(this,"Minimum 3-pt aspect ratio",2.4),
         max3ptAspectRatioProperty = new DoubleProperty(this,"Maximum 3-pt aspect ratio",4),
@@ -87,7 +90,11 @@ public class StormCV extends WPILaptopCameraExtension {
         contourColor3ptProperty = new ColorProperty(this, "3pt Contour color", Color.red),
         contourColor2ptProperty = new ColorProperty(this, "2pt Contour color", Color.orange),
         contourColor5ptProperty = new ColorProperty(this, "5pt Contour color", Color.magenta),
-        lineColorProperty       = new ColorProperty(this, "Line color",    Color.pink);
+        lineColorProperty       = new ColorProperty(this, "Line color",        Color.pink),
+        crosshairColorProperty  = new ColorProperty(this, "Crosshair color",   Color.blue);
+    
+    public final IntegerProperty
+        crosshairSizeProperty = new IntegerProperty(this, "Crosshair size",3);
         
     public final MultiProperty
         processProperty = new MultiProperty(this, "Process until?"),
@@ -100,12 +107,15 @@ public class StormCV extends WPILaptopCameraExtension {
     // Store these and update them in propertyChanged() because getValue()
     // has too much overhead to be called every time.
     private double _fovx,_fovy;
+    private double _desiredXAngle,
+                   _desiredYAngle;
     private int _h0,_h1,
                 _s0,_s1,
                 _v0,_v1;
     private int _holeClosingIterations;
     private double _polygonApprox;
-    private double _minAreaRatio;
+    private double _minAreaRatio,
+                   _min5ptHeightRatio;
     private double _min3ptAspectRatio,
                    _max3ptAspectRatio,
                    _min2ptAspectRatio,
@@ -113,13 +123,15 @@ public class StormCV extends WPILaptopCameraExtension {
     private Color _contourColor3pt,
                   _contourColor2pt,
                   _contourColor5pt,
-                  _lineColor;
+                  _lineColor,
+                  _crosshairColor;
+    private int _crosshairSize;
     private double _nearVertSlope;
     private Object _process,
                    _select;
     private boolean _useTestImage;
     
-    private CvPoint2D32f _desiredLocNormed = new CvPoint2D32f(0,0);
+    CvPoint2D32f _desiredLocNormed;
     
     // This holds the image returned from processImage() (if the selected
     // processing mode replaces the rawImage instead of drawing on top of
@@ -163,6 +175,9 @@ public class StormCV extends WPILaptopCameraExtension {
         _fovx = fovxProperty.getValue();
         _fovy = fovyProperty.getValue();
         
+        _desiredXAngle = desiredXAngleProperty.getValue();
+        _desiredYAngle = desiredYAngleProperty.getValue();
+        
         _h0 = h0Property.getValue();
         _h1 = h1Property.getValue();
         _s0 = s0Property.getValue();
@@ -187,6 +202,9 @@ public class StormCV extends WPILaptopCameraExtension {
         _contourColor2pt = contourColor2ptProperty.getValue();
         _contourColor5pt = contourColor5ptProperty.getValue();
         _lineColor = lineColorProperty.getValue();
+        _crosshairColor = crosshairColorProperty.getValue();
+        
+        _crosshairSize = crosshairSizeProperty.getValue();
         
         _process = processProperty.getValue();
         _select  = selectProperty.getValue();
@@ -203,6 +221,10 @@ public class StormCV extends WPILaptopCameraExtension {
         super.init();
         
         _initVars();
+        
+        for(int i=0;i<prefixes.length;++i) {
+            _sendData(i, false, 0, 0);
+        }
     }
 
     @Override
@@ -211,6 +233,10 @@ public class StormCV extends WPILaptopCameraExtension {
             _fovx = fovxProperty.getValue();
         } else if(property == fovyProperty) {
             _fovy = fovyProperty.getValue();
+        } else if(property == desiredXAngleProperty) {
+            _desiredXAngle = desiredXAngleProperty.getValue();
+        } else if(property == desiredYAngleProperty) {
+            _desiredYAngle = desiredYAngleProperty.getValue();
         } else if(property == h0Property) {
             _h0 = h0Property.getValue();
         } else if(property == h1Property) {
@@ -231,6 +257,8 @@ public class StormCV extends WPILaptopCameraExtension {
             _nearVertSlope = Math.tan(Math.toRadians(nearVertAngleProperty.getValue()));
         } else if(property == minAreaRatioProperty) {
             _minAreaRatio = minAreaRatioProperty.getValue();
+        } else if(property == min5ptHeightRatioProperty) {
+            _min5ptHeightRatio = min5ptHeightRatioProperty.getValue();
         } else if(property == min3ptAspectRatioProperty) {
             _min3ptAspectRatio = min3ptAspectRatioProperty.getValue();
         } else if(property == max3ptAspectRatioProperty) {
@@ -247,6 +275,10 @@ public class StormCV extends WPILaptopCameraExtension {
             _contourColor2pt = contourColor2ptProperty.getValue();
         } else if(property == lineColorProperty) {
             _lineColor = lineColorProperty.getValue();
+        } else if(property == crosshairColorProperty) {
+            _crosshairColor = crosshairColorProperty.getValue();
+        } else if(property == crosshairSizeProperty) {
+            _crosshairSize = crosshairSizeProperty.getValue();
         } else if(property == processProperty) {
             _process = processProperty.getValue();
         } else if(property == selectProperty) {
@@ -425,7 +457,7 @@ public class StormCV extends WPILaptopCameraExtension {
             centerY /= totalPoints;
             
             cvLine(StormCVUtil.getIplImage(rawImage),
-                   desiredLoc, 
+                   desiredLoc,
                    new CvPoint((int)centerX,(int)centerY),
                    CV_RGB(_lineColor.getRed(),_lineColor.getGreen(),_lineColor.getBlue()),
                    2,8,0);
@@ -455,6 +487,7 @@ public class StormCV extends WPILaptopCameraExtension {
         if(_process == _process_nothing) {
             return rawImage;
         }
+        _desiredLocNormed = new CvPoint2D32f(_desiredXAngle/(_fovx/2),_desiredYAngle/(_fovy/2));
         
         // Reallocate temporaries if the size has changed
         if(_size == null || _size.width() != rawImage.getWidth() || _size.height() != rawImage.getHeight()) {
@@ -577,7 +610,7 @@ public class StormCV extends WPILaptopCameraExtension {
                 index = 2;
                 double dx = Math.abs(points.position(1).x()-points.position(0).x()),
                        dy = Math.abs(points.position(1).y()-points.position(0).y());
-                if(dy < _nearVertSlope*dx) {
+                if(dy < _nearVertSlope*dx || dy < _min5ptHeightRatio*rawImage.getHeight()) {
                     continue;
                 }
                 System.out.println("Vert line");
@@ -639,6 +672,31 @@ public class StormCV extends WPILaptopCameraExtension {
             CvSeq selectedContour = convexContours.get(selectedIndex);
             _processContour(i, rawImage, selectedContour, colors[i]);
         }
+        
+        
+        
+            
+        CvScalar crosshairColor = CV_RGB(_crosshairColor.getRed(),
+                                         _crosshairColor.getGreen(),
+                                         _crosshairColor.getBlue());
+
+        double desiredXNormed = _desiredLocNormed.x(),
+               desiredYNormed = _desiredLocNormed.y();
+        CvPoint desiredLoc = new CvPoint((int)((desiredXNormed +1)/2*rawImage.getWidth()),
+                                         (int)((-desiredYNormed+1)/2*rawImage.getHeight()));
+        CvPoint left   = new CvPoint(desiredLoc.x()-_crosshairSize,desiredLoc.y()),
+                right  = new CvPoint(desiredLoc.x()+_crosshairSize,desiredLoc.y()),
+                top    = new CvPoint(desiredLoc.x(),desiredLoc.y()-_crosshairSize),
+                bottom = new CvPoint(desiredLoc.x(),desiredLoc.y()+_crosshairSize);
+
+        cvLine(StormCVUtil.getIplImage(rawImage),
+               left,right,
+               crosshairColor,
+               2,8,0);
+        cvLine(StormCVUtil.getIplImage(rawImage),
+               top,bottom,
+               crosshairColor,
+               2,8,0);
         
         long totalTime = System.nanoTime()-startTime;
         
