@@ -81,10 +81,10 @@ public class StormCV extends WPILaptopCameraExtension {
         minAreaRatioProperty      = new DoubleProperty(this,"Minimum contour/image area ratio",0.5/100),
         min5ptHeightRatioProperty = new DoubleProperty(this,"Minimum contour/image height ratio for 5pt",7.0/100);
     public final DoubleProperty
-        min3ptAspectRatioProperty = new DoubleProperty(this,"Minimum 3-pt aspect ratio",2.4),
+        min3ptAspectRatioProperty = new DoubleProperty(this,"Minimum 3-pt aspect ratio",2.5),
         max3ptAspectRatioProperty = new DoubleProperty(this,"Maximum 3-pt aspect ratio",4),
         min2ptAspectRatioProperty = new DoubleProperty(this,"Minimum 2-pt aspect ratio",1.7),
-        max2ptAspectRatioProperty = new DoubleProperty(this,"Maximum 2-pt aspect ratio",2.4);
+        max2ptAspectRatioProperty = new DoubleProperty(this,"Maximum 2-pt aspect ratio",2.5);
         
     public final ColorProperty
         contourColor3ptProperty = new ColorProperty(this, "3pt Contour color", Color.red),
@@ -532,6 +532,28 @@ public class StormCV extends WPILaptopCameraExtension {
         // Chain Approximation" -- I have no idea what that means yet.
         cvFindContours(_bin, _storage, contours, 256, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_TC89_KCOS);
         
+        CvScalar crosshairColor = CV_RGB(_crosshairColor.getRed(),
+                                         _crosshairColor.getGreen(),
+                                         _crosshairColor.getBlue());
+
+        double desiredXNormed = _desiredLocNormed.x(),
+               desiredYNormed = _desiredLocNormed.y();
+        CvPoint desiredLoc = new CvPoint((int)((desiredXNormed +1)/2*rawImage.getWidth()),
+                                         (int)((-desiredYNormed+1)/2*rawImage.getHeight()));
+        CvPoint left   = new CvPoint(desiredLoc.x()-_crosshairSize,desiredLoc.y()),
+                right  = new CvPoint(desiredLoc.x()+_crosshairSize,desiredLoc.y()),
+                top    = new CvPoint(desiredLoc.x(),desiredLoc.y()-_crosshairSize),
+                bottom = new CvPoint(desiredLoc.x(),desiredLoc.y()+_crosshairSize);
+
+        cvLine(StormCVUtil.getIplImage(rawImage),
+               left,right,
+               crosshairColor,
+               2,8,0);
+        cvLine(StormCVUtil.getIplImage(rawImage),
+               top,bottom,
+               crosshairColor,
+               2,8,0);
+        
         if(contours == null || contours.isNull() || contours.total() == 0) {
             for(int i=0;i<prefixes.length;++i) {
                 _sendData(i,false,0,0);
@@ -672,31 +694,6 @@ public class StormCV extends WPILaptopCameraExtension {
             CvSeq selectedContour = convexContours.get(selectedIndex);
             _processContour(i, rawImage, selectedContour, colors[i]);
         }
-        
-        
-        
-            
-        CvScalar crosshairColor = CV_RGB(_crosshairColor.getRed(),
-                                         _crosshairColor.getGreen(),
-                                         _crosshairColor.getBlue());
-
-        double desiredXNormed = _desiredLocNormed.x(),
-               desiredYNormed = _desiredLocNormed.y();
-        CvPoint desiredLoc = new CvPoint((int)((desiredXNormed +1)/2*rawImage.getWidth()),
-                                         (int)((-desiredYNormed+1)/2*rawImage.getHeight()));
-        CvPoint left   = new CvPoint(desiredLoc.x()-_crosshairSize,desiredLoc.y()),
-                right  = new CvPoint(desiredLoc.x()+_crosshairSize,desiredLoc.y()),
-                top    = new CvPoint(desiredLoc.x(),desiredLoc.y()-_crosshairSize),
-                bottom = new CvPoint(desiredLoc.x(),desiredLoc.y()+_crosshairSize);
-
-        cvLine(StormCVUtil.getIplImage(rawImage),
-               left,right,
-               crosshairColor,
-               2,8,0);
-        cvLine(StormCVUtil.getIplImage(rawImage),
-               top,bottom,
-               crosshairColor,
-               2,8,0);
         
         long totalTime = System.nanoTime()-startTime;
         
