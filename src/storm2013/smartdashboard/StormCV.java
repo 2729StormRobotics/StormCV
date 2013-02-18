@@ -33,8 +33,8 @@ import javax.imageio.ImageIO;
  *     extensions/lib/WPIJavaCV.jar
  * @author Joe
  */
-public class StormCV extends WPILaptopCameraExtension {
-//public class StormCV extends WPICameraExtension {
+//public class StormCV extends WPILaptopCameraExtension {
+public class StormCV extends WPICameraExtension {
     public static final String NAME = "StormCV Target Tracker";
     
     // Dummy objects representing steps of the process (for processProperty)
@@ -58,14 +58,14 @@ public class StormCV extends WPILaptopCameraExtension {
         fovxProperty = new DoubleProperty(this,"horizontal FOV", 47),  // as per datasheet
         fovyProperty = new DoubleProperty(this,"Vertical FOV", 36.13), // see http://photo.stackexchange.com/questions/21536/how-can-i-calculate-vertical-field-of-view-from-horizontal-field-of-view#21543
         desiredXAngleProperty = new DoubleProperty(this,"Desired X angle",0),
-        desiredYAngleProperty = new DoubleProperty(this,"Desired Y angle",0);
+        desiredYAngleProperty = new DoubleProperty(this,"Desired Y angle",-2.5);
     
     public final IntegerProperty 
         h0Property = new IntegerProperty(this, "Low Hue threshold",        50),
         h1Property = new IntegerProperty(this, "High Hue threshold",       90),
         s0Property = new IntegerProperty(this, "Low Saturation threshold", 220),
         s1Property = new IntegerProperty(this, "High Saturation threshold",255),
-        v0Property = new IntegerProperty(this, "Low Value threshold",      20),
+        v0Property = new IntegerProperty(this, "Low Value threshold",      50),
         v1Property = new IntegerProperty(this, "High Value threshold",     255);
         
     public final IntegerProperty
@@ -91,10 +91,10 @@ public class StormCV extends WPILaptopCameraExtension {
         contourColor2ptProperty = new ColorProperty(this, "2pt Contour color", Color.orange),
         contourColor5ptProperty = new ColorProperty(this, "5pt Contour color", Color.magenta),
         lineColorProperty       = new ColorProperty(this, "Line color",        Color.pink),
-        crosshairColorProperty  = new ColorProperty(this, "Crosshair color",   Color.blue);
+        crosshairColorProperty  = new ColorProperty(this, "Crosshair color",   Color.cyan);
     
     public final IntegerProperty
-        crosshairSizeProperty = new IntegerProperty(this, "Crosshair size",3);
+        crosshairSizeProperty = new IntegerProperty(this, "Crosshair size",10);
         
     public final MultiProperty
         processProperty = new MultiProperty(this, "Process until?"),
