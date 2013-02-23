@@ -523,7 +523,7 @@ public class StormCV extends WPILaptopCameraExtension {
 
     @Override
     public WPIImage processImage(WPIColorImage rawImage) {
-        if(Robot.getTable().getBoolean("Running", false)) {
+        if(Robot.getTable().getBoolean("Enabled", false)) {
             long currTime = System.currentTimeMillis();
             if(_savePeriod >= 0 && (_prevSaveTime < 0 || _prevSaveTime + _savePeriod*1000 <= currTime)) { 
                 _prevSaveTime = currTime;
@@ -533,6 +533,7 @@ public class StormCV extends WPILaptopCameraExtension {
                     private final IplImage copy = IplImage.create(raw.cvSize(),raw.depth(),raw.nChannels());
                     {
                         cvCopy(raw, copy);
+                        setPriority(Thread.MIN_PRIORITY);
                     }
                     @Override
                     public void run() {
@@ -540,7 +541,7 @@ public class StormCV extends WPILaptopCameraExtension {
                             File out = new File(name);
                             ImageIO.write(copy.getBufferedImage(), "jpg", out);
                         } catch (IOException ex) {
-                            Logger.getLogger(StormCV.class.getName()).log(Level.SEVERE, "Save failed", ex);
+                            Logger.getLogger(StormCV.class.getName()).log(Level.SEVERE, "Failed to save \""+name+"\"", ex);
                         } finally {
                             copy.deallocate();
                         }
