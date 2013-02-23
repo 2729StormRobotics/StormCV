@@ -37,8 +37,8 @@ import javax.imageio.ImageIO;
  *     extensions/lib/WPIJavaCV.jar
  * @author Joe
  */
-public class StormCV extends WPILaptopCameraExtension {
-//public class StormCV extends WPICameraExtension {
+//public class StormCV extends WPILaptopCameraExtension {
+public class StormCV extends WPICameraExtension {
     public static final String NAME = "StormCV Target Tracker";
     
     // Dummy objects representing steps of the process (for processProperty)
@@ -63,8 +63,8 @@ public class StormCV extends WPILaptopCameraExtension {
         fovyProperty = new DoubleProperty(this,"Vertical FOV", 36.13); // see http://photo.stackexchange.com/questions/21536/how-can-i-calculate-vertical-field-of-view-from-horizontal-field-of-view#21543;
  
     public final DoubleListProperty
-        desiredXAnglesProperty = new DoubleListProperty(this,"Desired X angle",new double[]{0,0,0,0}),
-        desiredYAnglesProperty = new DoubleListProperty(this,"Desired Y angles",new double[]{-2.5,-4.1,-5.5,-5.5});
+        desiredXAnglesProperty = new DoubleListProperty(this,"Desired X angle",new double[]{0,0,-2.5,0}),
+        desiredYAnglesProperty = new DoubleListProperty(this,"Desired Y angles",new double[]{-2.5,-4.6,-6.0,-7.7});
     
     public final StringListProperty
         distanceKeysProperty = new StringListProperty(this,"Distance keys",new String[]{"Near",
@@ -95,7 +95,7 @@ public class StormCV extends WPILaptopCameraExtension {
     public final DoubleProperty
         min3ptAspectRatioProperty = new DoubleProperty(this,"Minimum 3-pt aspect ratio",2.5),
         max3ptAspectRatioProperty = new DoubleProperty(this,"Maximum 3-pt aspect ratio",4),
-        min2ptAspectRatioProperty = new DoubleProperty(this,"Minimum 2-pt aspect ratio",1.7),
+        min2ptAspectRatioProperty = new DoubleProperty(this,"Minimum 2-pt aspect ratio",1.5),
         max2ptAspectRatioProperty = new DoubleProperty(this,"Maximum 2-pt aspect ratio",2.5);
         
     public final ColorProperty
