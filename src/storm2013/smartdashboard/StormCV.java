@@ -16,6 +16,8 @@ import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -56,9 +58,17 @@ public class StormCV extends WPICameraExtension {
     // and easy tuning and testing.
     public final DoubleProperty
         fovxProperty = new DoubleProperty(this,"horizontal FOV", 47),  // as per datasheet
-        fovyProperty = new DoubleProperty(this,"Vertical FOV", 36.13), // see http://photo.stackexchange.com/questions/21536/how-can-i-calculate-vertical-field-of-view-from-horizontal-field-of-view#21543
-        desiredXAngleProperty = new DoubleProperty(this,"Desired X angle",0),
-        desiredYAngleProperty = new DoubleProperty(this,"Desired Y angle",-2.5);
+        fovyProperty = new DoubleProperty(this,"Vertical FOV", 36.13); // see http://photo.stackexchange.com/questions/21536/how-can-i-calculate-vertical-field-of-view-from-horizontal-field-of-view#21543;
+ 
+    public final DoubleListProperty
+        desiredXAnglesProperty = new DoubleListProperty(this,"Desired X angle",new double[]{0,0,0,0}),
+        desiredYAnglesProperty = new DoubleListProperty(this,"Desired Y angles",new double[]{-2.5,-4.1,-5.5,-5.5});
+    
+    public final StringListProperty
+        distanceKeysProperty = new StringListProperty(this,"Distance keys",new String[]{"Near",
+                                                                                        "Center line",
+                                                                                        "Opponent Auto",
+                                                                                        "Feeder"});
     
     public final IntegerProperty 
         h0Property = new IntegerProperty(this, "Low Hue threshold",        50),
@@ -107,8 +117,9 @@ public class StormCV extends WPICameraExtension {
     // Store these and update them in propertyChanged() because getValue()
     // has too much overhead to be called every time.
     private double _fovx,_fovy;
-    private double _desiredXAngle,
-                   _desiredYAngle;
+    private double[] _desiredXAngles,
+                     _desiredYAngles;
+    private final Map<String,Integer> _distanceIndices = new HashMap<>();
     private int _h0,_h1,
                 _s0,_s1,
                 _v0,_v1;
@@ -152,8 +163,30 @@ public class StormCV extends WPICameraExtension {
     private WPIColorImage _loadedImage,
                           _processImage;
             
-    private boolean  _sendResults = true,
-                     _displayIntermediate       = false;
+    private boolean  _sendResults         = true,
+                     _displayIntermediate = false;
+    
+    private void _updateDistanceIndices() {
+        _distanceIndices.clear();
+        String[] values = distanceKeysProperty.getValue();
+        if(values != null) {
+            for(int i=0;i<values.length;++i) {
+                _distanceIndices.put(values[i], i);
+            }
+        }
+    }
+    
+    private int _getDistanceIndex() {
+        String key = Robot.getTable().getString("Distance",null);
+        if(key == null) {
+            return 0;
+        }
+        Integer ret = _distanceIndices.get(key);
+        if(ret == null) {
+            return 0;
+        }
+        return ret;
+    }
 
     private void _initVars() {
         processProperty.add("Nothing",           _process_nothing);
@@ -175,8 +208,8 @@ public class StormCV extends WPICameraExtension {
         _fovx = fovxProperty.getValue();
         _fovy = fovyProperty.getValue();
         
-        _desiredXAngle = desiredXAngleProperty.getValue();
-        _desiredYAngle = desiredYAngleProperty.getValue();
+        _desiredXAngles = desiredXAnglesProperty.getValue();
+        _desiredYAngles = desiredYAnglesProperty.getValue();
         
         _h0 = h0Property.getValue();
         _h1 = h1Property.getValue();
@@ -209,11 +242,7 @@ public class StormCV extends WPICameraExtension {
         _process = processProperty.getValue();
         _select  = selectProperty.getValue();
         
-        try {
-            _loadedImage = new WPIColorImage(ImageIO.read(new File("test.jpg")));
-        } catch (IOException ex) {
-            Logger.getLogger(StormCV.class.getName()).log(Level.SEVERE, null, ex);
-        }
+        _updateDistanceIndices();
     }
     
     @Override
@@ -233,10 +262,12 @@ public class StormCV extends WPICameraExtension {
             _fovx = fovxProperty.getValue();
         } else if(property == fovyProperty) {
             _fovy = fovyProperty.getValue();
-        } else if(property == desiredXAngleProperty) {
-            _desiredXAngle = desiredXAngleProperty.getValue();
-        } else if(property == desiredYAngleProperty) {
-            _desiredYAngle = desiredYAngleProperty.getValue();
+        } else if(property == desiredXAnglesProperty) {
+            _desiredXAngles = desiredXAnglesProperty.getValue();
+        } else if(property == desiredYAnglesProperty) {
+            _desiredYAngles = desiredYAnglesProperty.getValue();
+        } else if(property == distanceKeysProperty) {
+            _updateDistanceIndices();
         } else if(property == h0Property) {
             _h0 = h0Property.getValue();
         } else if(property == h1Property) {
@@ -487,7 +518,11 @@ public class StormCV extends WPICameraExtension {
         if(_process == _process_nothing) {
             return rawImage;
         }
-        _desiredLocNormed = new CvPoint2D32f(_desiredXAngle/(_fovx/2),_desiredYAngle/(_fovy/2));
+        
+        int distanceIndex = _getDistanceIndex();
+        double desiredXAngle = _desiredXAngles[distanceIndex],
+               desiredYAngle = _desiredYAngles[distanceIndex];
+        _desiredLocNormed = new CvPoint2D32f(desiredXAngle/(_fovx/2),desiredYAngle/(_fovy/2));
         
         // Reallocate temporaries if the size has changed
         if(_size == null || _size.width() != rawImage.getWidth() || _size.height() != rawImage.getHeight()) {
