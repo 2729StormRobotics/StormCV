@@ -15,7 +15,9 @@ import edu.wpi.first.wpilibj.tables.ITable;
 import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
@@ -35,8 +37,8 @@ import javax.imageio.ImageIO;
  *     extensions/lib/WPIJavaCV.jar
  * @author Joe
  */
-//public class StormCV extends WPILaptopCameraExtension {
-public class StormCV extends WPICameraExtension {
+public class StormCV extends WPILaptopCameraExtension {
+//public class StormCV extends WPICameraExtension {
     public static final String NAME = "StormCV Target Tracker";
     
     // Dummy objects representing steps of the process (for processProperty)
@@ -113,6 +115,12 @@ public class StormCV extends WPICameraExtension {
     public final BooleanProperty
         useTestImageProperty = new BooleanProperty(this, "Use Test Image",false);
     
+    public final DoubleProperty
+        savePeriodProperty = new DoubleProperty(this,"Save period (s)",10);
+    
+    public final StringProperty
+        saveLocationProperty = new StringProperty(this, "Save location",".");
+    
     
     // Store these and update them in propertyChanged() because getValue()
     // has too much overhead to be called every time.
@@ -141,6 +149,9 @@ public class StormCV extends WPICameraExtension {
     private Object _process,
                    _select;
     private boolean _useTestImage;
+    private String _saveLocation;
+    private double _savePeriod;
+    private long _prevSaveTime;
     
     CvPoint2D32f _desiredLocNormed;
     
@@ -242,6 +253,11 @@ public class StormCV extends WPICameraExtension {
         _process = processProperty.getValue();
         _select  = selectProperty.getValue();
         
+        _saveLocation = saveLocationProperty.getValue();
+        _savePeriod = savePeriodProperty.getValue();
+        
+        _prevSaveTime = -1;
+        
         _updateDistanceIndices();
     }
     
@@ -314,6 +330,8 @@ public class StormCV extends WPICameraExtension {
             _process = processProperty.getValue();
         } else if(property == selectProperty) {
             _select = selectProperty.getValue();
+        } else if(property == savePeriodProperty) {
+            _savePeriod = savePeriodProperty.getValue();
         }
     }
     
@@ -505,6 +523,33 @@ public class StormCV extends WPICameraExtension {
 
     @Override
     public WPIImage processImage(WPIColorImage rawImage) {
+        if(Robot.getTable().getBoolean("Running", false)) {
+            long currTime = System.currentTimeMillis();
+            if(_savePeriod >= 0 && (_prevSaveTime < 0 || _prevSaveTime + _savePeriod*1000 <= currTime)) { 
+                _prevSaveTime = currTime;
+                final IplImage raw = StormCVUtil.getIplImage(rawImage);
+                new Thread() {
+                    private final String name = _saveLocation+"/Capture " + new SimpleDateFormat("yyyy-MM-dd HH.mm.ss").format(new Date()) + ".jpg";
+                    private final IplImage copy = IplImage.create(raw.cvSize(),raw.depth(),raw.nChannels());
+                    {
+                        cvCopy(raw, copy);
+                    }
+                    @Override
+                    public void run() {
+                        try {
+                            File out = new File(name);
+                            ImageIO.write(copy.getBufferedImage(), "jpg", out);
+                        } catch (IOException ex) {
+                            Logger.getLogger(StormCV.class.getName()).log(Level.SEVERE, "Save failed", ex);
+                        } finally {
+                            copy.deallocate();
+                        }
+                    }
+                }.start();
+            }
+        } else {
+            _prevSaveTime = -1;
+        }
         if(_useTestImage) {
             _processImage = new WPIColorImage(_loadedImage.getBufferedImage());
             rawImage = _processImage;
