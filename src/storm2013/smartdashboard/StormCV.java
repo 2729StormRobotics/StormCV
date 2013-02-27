@@ -37,8 +37,8 @@ import javax.imageio.ImageIO;
  *     extensions/lib/WPIJavaCV.jar
  * @author Joe
  */
-//public class StormCV extends WPILaptopCameraExtension {
-public class StormCV extends WPICameraExtension {
+public class StormCV extends WPILaptopCameraExtension {
+//public class StormCV extends WPICameraExtension {
     public static final String NAME = "StormCV Target Tracker";
     
     // Dummy objects representing steps of the process (for processProperty)
@@ -116,10 +116,10 @@ public class StormCV extends WPICameraExtension {
         useTestImageProperty = new BooleanProperty(this, "Use Test Image",false);
     
     public final DoubleProperty
-        savePeriodProperty = new DoubleProperty(this,"Save period (s)",10);
+        savePeriodProperty = new DoubleProperty(this,"Save period (s)",5);
     
     public final StringProperty
-        saveLocationProperty = new StringProperty(this, "Save location",".");
+        saveLocationProperty = new StringProperty(this, "Save location",System.getenv("USERPROFILE") + "/Captures");
     
     
     // Store these and update them in propertyChanged() because getValue()
@@ -332,6 +332,8 @@ public class StormCV extends WPICameraExtension {
             _select = selectProperty.getValue();
         } else if(property == savePeriodProperty) {
             _savePeriod = savePeriodProperty.getValue();
+        } else if(property == saveLocationProperty) {
+            _saveLocation = saveLocationProperty.getValue();
         }
     }
     
@@ -529,7 +531,8 @@ public class StormCV extends WPICameraExtension {
                 _prevSaveTime = currTime;
                 final IplImage raw = StormCVUtil.getIplImage(rawImage);
                 new Thread() {
-                    private final String name = _saveLocation+"/Capture " + new SimpleDateFormat("yyyy-MM-dd HH.mm.ss").format(new Date()) + ".jpg";
+                    private final String folder = _saveLocation,
+                                         name = "/Capture " + new SimpleDateFormat("yyyy-MM-dd HH.mm.ss").format(new Date()) + ".jpg";
                     private final IplImage copy = IplImage.create(raw.cvSize(),raw.depth(),raw.nChannels());
                     {
                         cvCopy(raw, copy);
@@ -538,10 +541,15 @@ public class StormCV extends WPICameraExtension {
                     @Override
                     public void run() {
                         try {
-                            File out = new File(name);
+                            System.out.println("Saving \"" + name + "\"");
+                            File folderFile = new File(folder);
+                            folderFile.mkdirs();
+                            File out = new File(folder + name);
                             ImageIO.write(copy.getBufferedImage(), "jpg", out);
-                        } catch (IOException ex) {
+                            System.out.println("Saved \"" + name + "\"");
+                        } catch (Exception ex) {
                             Logger.getLogger(StormCV.class.getName()).log(Level.SEVERE, "Failed to save \""+name+"\"", ex);
+                            ex.printStackTrace();
                         } finally {
                             copy.deallocate();
                         }
