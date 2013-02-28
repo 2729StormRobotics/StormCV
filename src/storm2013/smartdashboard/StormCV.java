@@ -37,8 +37,8 @@ import javax.imageio.ImageIO;
  *     extensions/lib/WPIJavaCV.jar
  * @author Joe
  */
-public class StormCV extends WPILaptopCameraExtension {
-//public class StormCV extends WPICameraExtension {
+//public class StormCV extends WPILaptopCameraExtension {
+public class StormCV extends WPICameraExtension {
     public static final String NAME = "StormCV Target Tracker";
     
     // Dummy objects representing steps of the process (for processProperty)
