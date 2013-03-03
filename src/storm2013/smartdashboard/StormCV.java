@@ -64,7 +64,7 @@ public class StormCV extends WPICameraExtension {
  
     public final DoubleListProperty
         desiredXAnglesProperty = new DoubleListProperty(this,"Desired X angle",new double[]{0,0,-2.5,0}),
-        desiredYAnglesProperty = new DoubleListProperty(this,"Desired Y angles",new double[]{-2.5,-4.6,-6.0,-7.7});
+        desiredYAnglesProperty = new DoubleListProperty(this,"Desired Y angles",new double[]{-3,-4.6,-6.0,-7.7});
     
     public final StringListProperty
         distanceKeysProperty = new StringListProperty(this,"Distance keys",new String[]{"Near",
@@ -77,7 +77,7 @@ public class StormCV extends WPICameraExtension {
         h1Property = new IntegerProperty(this, "High Hue threshold",       90),
         s0Property = new IntegerProperty(this, "Low Saturation threshold", 220),
         s1Property = new IntegerProperty(this, "High Saturation threshold",255),
-        v0Property = new IntegerProperty(this, "Low Value threshold",      50),
+        v0Property = new IntegerProperty(this, "Low Value threshold",      60),
         v1Property = new IntegerProperty(this, "High Value threshold",     255);
         
     public final IntegerProperty
