@@ -116,7 +116,7 @@ public class StormCV extends WPICameraExtension {
         useTestImageProperty = new BooleanProperty(this, "Use Test Image",false);
     
     public final DoubleProperty
-        savePeriodProperty = new DoubleProperty(this,"Save period (s)",5);
+        savePeriodProperty = new DoubleProperty(this,"Save period (s)",1);
     
     public final StringProperty
         saveLocationProperty = new StringProperty(this, "Save location",System.getenv("USERPROFILE") + "/Captures");
