@@ -544,7 +544,7 @@ public class StormCV extends WPICameraExtension {
 
     @Override
     public WPIImage processImage(WPIColorImage rawImage) {
-        System.out.println("Starting processImage");
+//        System.out.println("Starting processImage");
         if(_useTestImage) {
             _processImage = new WPIColorImage(_loadedImage.getBufferedImage());
             rawImage = _processImage;
@@ -638,7 +638,7 @@ public class StormCV extends WPICameraExtension {
         // outer contours of a shape, CV_CHAIN_APPROX_TC89_KCOS uses "Teh-Chin
         // Chain Approximation" -- I have no idea what that means yet.
         cvFindContours(_bin, _storage, contours, 256, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_TC89_KCOS);
-        System.err.println("Found contours");
+//        System.err.println("Found contours");
         
         CvScalar crosshairColor[] = new CvScalar[4];
         for(int i=0;i<crosshairColor.length;++i) {
@@ -660,16 +660,16 @@ public class StormCV extends WPICameraExtension {
                new CvPoint(rawImage.getWidth(),rawImage.getHeight()*2/3),
                gridLineColor,
                2,8,0);
-        System.err.println("Drew big white lines ... starting the draw of " + _desiredXAngles.length + " crosshairs");
+//        System.err.println("Drew big white lines ... starting the draw of " + _desiredXAngles.length + " crosshairs");
         
         for(int i=0;i<_desiredXAngles.length;++i) {
-            System.out.println("Drawing crosshair " + i + "?");
+//            System.out.println("Drawing crosshair " + i + "?");
             double desiredXNormed = _desiredXAngles[i]/(_fovx/2),
                    desiredYNormed = _desiredYAngles[i]/(_fovy/2);
             if(Math.abs(desiredXNormed) > 1 || Math.abs(desiredYNormed) > 1) {
                 continue;
             }
-            System.out.println("Drawing crosshair " + i);
+//            System.out.println("Drawing crosshair " + i);
             CvPoint desiredLoc = new CvPoint((int)((desiredXNormed +1)/2*rawImage.getWidth()),
                                              (int)((-desiredYNormed+1)/2*rawImage.getHeight()));
 
@@ -832,7 +832,7 @@ public class StormCV extends WPICameraExtension {
         long totalTime = System.nanoTime()-startTime;
         
         _sendTime(totalTime);
-        System.out.println("Ending processImage");
+//        System.out.println("Ending processImage");
         
         return rawImage;
     }
