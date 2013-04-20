@@ -101,9 +101,12 @@ public class StormCV extends WPICameraExtension {
     public final ColorProperty
         contourColor3ptProperty = new ColorProperty(this, "3pt Contour color", Color.red),
         contourColor2ptProperty = new ColorProperty(this, "2pt Contour color", Color.orange),
-        contourColor5ptProperty = new ColorProperty(this, "5pt Contour color", Color.magenta),
+        gridLineColorProperty   = new ColorProperty(this, "Grid line color",   Color.white),
         lineColorProperty       = new ColorProperty(this, "Line color",        Color.pink),
-        crosshairColorProperty  = new ColorProperty(this, "Crosshair color",   Color.cyan);
+        crosshair1ColorProperty  = new ColorProperty(this, "Crosshair 1 color", Color.cyan),
+        crosshair2ColorProperty  = new ColorProperty(this, "Crosshair 2 color", Color.cyan),
+        crosshair3ColorProperty  = new ColorProperty(this, "Crosshair 3 color", Color.cyan),
+        crosshair4ColorProperty  = new ColorProperty(this, "Crosshair 4 color", Color.cyan);
     
     public final IntegerProperty
         crosshairSizeProperty = new IntegerProperty(this, "Crosshair size",10);
@@ -141,9 +144,9 @@ public class StormCV extends WPICameraExtension {
                    _max2ptAspectRatio;
     private Color _contourColor3pt,
                   _contourColor2pt,
-                  _contourColor5pt,
-                  _lineColor,
-                  _crosshairColor;
+                  _gridLineColor,
+                  _lineColor;
+    private Color[] _crosshairColor = new Color[4];
     private int _crosshairSize;
     private double _nearVertSlope;
     private Object _process,
@@ -244,14 +247,24 @@ public class StormCV extends WPICameraExtension {
 
         _contourColor3pt = contourColor3ptProperty.getValue();
         _contourColor2pt = contourColor2ptProperty.getValue();
-        _contourColor5pt = contourColor5ptProperty.getValue();
+        _gridLineColor = gridLineColorProperty.getValue();
         _lineColor = lineColorProperty.getValue();
-        _crosshairColor = crosshairColorProperty.getValue();
+        _crosshairColor[0] = crosshair1ColorProperty.getValue();
+        _crosshairColor[1] = crosshair2ColorProperty.getValue();
+        _crosshairColor[2] = crosshair3ColorProperty.getValue();
+        _crosshairColor[3] = crosshair4ColorProperty.getValue();
         
         _crosshairSize = crosshairSizeProperty.getValue();
         
         _process = processProperty.getValue();
         _select  = selectProperty.getValue();
+        
+        try {
+            _loadedImage = new WPIColorImage(ImageIO.read(new File("test.jpg")));
+        } catch (IOException ex) {
+            ex.printStackTrace();
+//            Logger.getLogger(StormCV.class.getName()).log(Level.SEVERE, null, ex);
+        }
         
         _saveLocation = saveLocationProperty.getValue();
         _savePeriod = savePeriodProperty.getValue();
@@ -322,8 +335,14 @@ public class StormCV extends WPICameraExtension {
             _contourColor2pt = contourColor2ptProperty.getValue();
         } else if(property == lineColorProperty) {
             _lineColor = lineColorProperty.getValue();
-        } else if(property == crosshairColorProperty) {
-            _crosshairColor = crosshairColorProperty.getValue();
+        } else if(property == crosshair1ColorProperty) {
+            _crosshairColor[0] = crosshair1ColorProperty.getValue();
+        } else if(property == crosshair2ColorProperty) {
+            _crosshairColor[1] = crosshair2ColorProperty.getValue();
+        } else if(property == crosshair3ColorProperty) {
+            _crosshairColor[2] = crosshair3ColorProperty.getValue();
+        } else if(property == crosshair4ColorProperty) {
+            _crosshairColor[3] = crosshair4ColorProperty.getValue();
         } else if(property == crosshairSizeProperty) {
             _crosshairSize = crosshairSizeProperty.getValue();
         } else if(property == processProperty) {
@@ -337,7 +356,7 @@ public class StormCV extends WPICameraExtension {
         }
     }
     
-    private String[] prefixes = { "3pt","2pt","5pt" };
+    private String[] prefixes = { "3pt","2pt" };
     
     private void _sendData(int index,boolean found,double x,double y) {
         x *= _fovx/2;
@@ -525,9 +544,14 @@ public class StormCV extends WPICameraExtension {
 
     @Override
     public WPIImage processImage(WPIColorImage rawImage) {
+        System.out.println("Starting processImage");
+        if(_useTestImage) {
+            _processImage = new WPIColorImage(_loadedImage.getBufferedImage());
+            rawImage = _processImage;
+        }
         if(Robot.getTable().getBoolean("Enabled", false)) {
             long currTime = System.currentTimeMillis();
-            if(_savePeriod >= 0 && (_prevSaveTime < 0 || _prevSaveTime + _savePeriod*1000 <= currTime)) { 
+            if(!_useTestImage && _savePeriod >= 0 && (_prevSaveTime < 0 || _prevSaveTime + _savePeriod*1000 <= currTime)) { 
                 _prevSaveTime = currTime;
                 final IplImage raw = StormCVUtil.getIplImage(rawImage);
                 new Thread() {
@@ -559,10 +583,6 @@ public class StormCV extends WPICameraExtension {
         } else {
             _prevSaveTime = -1;
         }
-        if(_useTestImage) {
-            _processImage = new WPIColorImage(_loadedImage.getBufferedImage());
-            rawImage = _processImage;
-        }
         long startTime = System.nanoTime();
         if(_displayIntermediate) {
             _displayImage("Raw",StormCVUtil.getIplImage(rawImage));
@@ -574,9 +594,7 @@ public class StormCV extends WPICameraExtension {
         }
         
         int distanceIndex = _getDistanceIndex();
-        double desiredXAngle = _desiredXAngles[distanceIndex],
-               desiredYAngle = _desiredYAngles[distanceIndex];
-        _desiredLocNormed = new CvPoint2D32f(desiredXAngle/(_fovx/2),desiredYAngle/(_fovy/2));
+        _desiredLocNormed = new CvPoint2D32f(_desiredXAngles[distanceIndex]/(_fovx/2),_desiredYAngles[distanceIndex]/(_fovy/2));
         
         // Reallocate temporaries if the size has changed
         if(_size == null || _size.width() != rawImage.getWidth() || _size.height() != rawImage.getHeight()) {
@@ -620,28 +638,55 @@ public class StormCV extends WPICameraExtension {
         // outer contours of a shape, CV_CHAIN_APPROX_TC89_KCOS uses "Teh-Chin
         // Chain Approximation" -- I have no idea what that means yet.
         cvFindContours(_bin, _storage, contours, 256, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_TC89_KCOS);
+        System.err.println("Found contours");
         
-        CvScalar crosshairColor = CV_RGB(_crosshairColor.getRed(),
-                                         _crosshairColor.getGreen(),
-                                         _crosshairColor.getBlue());
-
-        double desiredXNormed = _desiredLocNormed.x(),
-               desiredYNormed = _desiredLocNormed.y();
-        CvPoint desiredLoc = new CvPoint((int)((desiredXNormed +1)/2*rawImage.getWidth()),
-                                         (int)((-desiredYNormed+1)/2*rawImage.getHeight()));
-        CvPoint left   = new CvPoint(desiredLoc.x()-_crosshairSize,desiredLoc.y()),
-                right  = new CvPoint(desiredLoc.x()+_crosshairSize,desiredLoc.y()),
-                top    = new CvPoint(desiredLoc.x(),desiredLoc.y()-_crosshairSize),
-                bottom = new CvPoint(desiredLoc.x(),desiredLoc.y()+_crosshairSize);
+        CvScalar crosshairColor[] = new CvScalar[4];
+        for(int i=0;i<crosshairColor.length;++i) {
+            crosshairColor[i] = CV_RGB(_crosshairColor[i].getRed(),
+                                       _crosshairColor[i].getGreen(),
+                                       _crosshairColor[i].getBlue());
+        }
+        CvScalar gridLineColor = CV_RGB(_gridLineColor.getRed(),
+                                        _gridLineColor.getGreen(),
+                                        _gridLineColor.getBlue());
 
         cvLine(StormCVUtil.getIplImage(rawImage),
-               left,right,
-               crosshairColor,
+               new CvPoint(rawImage.getWidth()/2,0),
+               new CvPoint(rawImage.getWidth()/2,rawImage.getHeight()),
+               gridLineColor,
                2,8,0);
         cvLine(StormCVUtil.getIplImage(rawImage),
-               top,bottom,
-               crosshairColor,
+               new CvPoint(0,rawImage.getHeight()*2/3),
+               new CvPoint(rawImage.getWidth(),rawImage.getHeight()*2/3),
+               gridLineColor,
                2,8,0);
+        System.err.println("Drew big white lines ... starting the draw of " + _desiredXAngles.length + " crosshairs");
+        
+        for(int i=0;i<_desiredXAngles.length;++i) {
+            System.out.println("Drawing crosshair " + i + "?");
+            double desiredXNormed = _desiredXAngles[i]/(_fovx/2),
+                   desiredYNormed = _desiredYAngles[i]/(_fovy/2);
+            if(Math.abs(desiredXNormed) > 1 || Math.abs(desiredYNormed) > 1) {
+                continue;
+            }
+            System.out.println("Drawing crosshair " + i);
+            CvPoint desiredLoc = new CvPoint((int)((desiredXNormed +1)/2*rawImage.getWidth()),
+                                             (int)((-desiredYNormed+1)/2*rawImage.getHeight()));
+
+            CvPoint left   = new CvPoint(desiredLoc.x()-_crosshairSize,desiredLoc.y()),
+                    right  = new CvPoint(desiredLoc.x()+_crosshairSize,desiredLoc.y()),
+                    top    = new CvPoint(desiredLoc.x(),desiredLoc.y()-_crosshairSize),
+                    bottom = new CvPoint(desiredLoc.x(),desiredLoc.y()+_crosshairSize);
+
+            cvLine(StormCVUtil.getIplImage(rawImage),
+                   left,right,
+                   crosshairColor[i],
+                   2,8,0);
+            cvLine(StormCVUtil.getIplImage(rawImage),
+                   top,bottom,
+                   crosshairColor[i],
+                   2,8,0);
+        }
         
         if(contours == null || contours.isNull() || contours.total() == 0) {
             for(int i=0;i<prefixes.length;++i) {
@@ -695,7 +740,7 @@ public class StormCV extends WPICameraExtension {
             copy.deallocate();
         }
         
-        int[] selectedIndices = { -1, -1, -1 };
+        int[] selectedIndices = { -1, -1 };
         
         double minArea = rawImage.getWidth()*rawImage.getHeight()*_minAreaRatio;
         double[] largestAreas = { 0, 0 };
@@ -708,7 +753,7 @@ public class StormCV extends WPICameraExtension {
             if(contour.total() != 2 && area < minArea) {
                 continue;
             }
-            if(contour.total() != 4 && contour.total() != 2) {
+            if(contour.total() != 4/* && contour.total() != 2*/) {
                 continue;
             }
             CvPoint points = new CvPoint(contour.total());
@@ -771,7 +816,7 @@ public class StormCV extends WPICameraExtension {
             }
         }
         
-        Color[] colors = { _contourColor3pt,_contourColor2pt,_contourColor5pt };
+        Color[] colors = { _contourColor3pt,_contourColor2pt };
         
         for(int i=0;i<selectedIndices.length;++i) {
             int selectedIndex = selectedIndices[i];
@@ -787,6 +832,7 @@ public class StormCV extends WPICameraExtension {
         long totalTime = System.nanoTime()-startTime;
         
         _sendTime(totalTime);
+        System.out.println("Ending processImage");
         
         return rawImage;
     }
